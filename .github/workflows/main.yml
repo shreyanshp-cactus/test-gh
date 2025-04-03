@@ -1,0 +1,50 @@
+name: Auto Merge Main to Staging
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  merge-to-staging:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Merge main into staging
+        id: merge
+        run: |
+          git fetch origin
+          git checkout staging
+          git merge origin/main --no-edit || echo "merge_failed=true" >> $GITHUB_OUTPUT
+
+      - name: Push changes if merge succeeded
+        if: ${{ !contains(steps.merge.outputs.merge_failed, 'true') }}
+        run: git push origin staging
+
+      - name: Create issue if merge failed
+        if: ${{ contains(steps.merge.outputs.merge_failed, 'true') }}
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '⚠️ Merge conflict: main → staging',
+              body: 'The automated merge from main to staging failed due to conflicts. Manual intervention is required.'
+            })
