@@ -1,4 +1,4 @@
-name: Auto Merge Main to Staging
+name: Auto Merge Main to staging
 
 on:
   push:
@@ -36,15 +36,19 @@ jobs:
         if: ${{ !contains(steps.merge.outputs.merge_failed, 'true') }}
         run: git push origin staging
 
-      - name: Create issue if merge failed
+      - name: Create PR if merge failed
         if: ${{ contains(steps.merge.outputs.merge_failed, 'true') }}
         uses: actions/github-script@v6
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            github.rest.issues.create({
+            const { data: pullRequest } = await github.rest.pulls.create({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              title: '⚠️ Merge conflict: main → staging',
-              body: 'The automated merge from main to staging failed due to conflicts. Manual intervention is required.'
-            })
+              title: '🔄 Auto-merge: main → staging',
+              body: 'This PR was automatically created because the automated merge from main to staging failed due to conflicts. Please resolve the conflicts and merge this PR.',
+              head: 'main',
+              base: 'staging'
+            });
+
+            console.log(`Pull request created: ${pullRequest.html_url}`);
