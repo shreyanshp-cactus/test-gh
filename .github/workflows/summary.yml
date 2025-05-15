@@ -1,0 +1,57 @@
+name: PR Summary Generator
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  summarize:
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          
+      - name: Generate PR Summary
+        id: summary
+        run: |
+          # Get the PR's diff and generate a summary
+          DIFF=$(git diff --name-status ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+          
+          # Basic summary example (you can make this more sophisticated)
+          echo "## Automated PR Summary" > summary.md
+          echo "### Files Changed:" >> summary.md
+          echo '```' >> summary.md
+          echo "$DIFF" >> summary.md
+          echo '```' >> summary.md
+          
+          # For a more detailed summary, you could analyze the changes more deeply here
+          
+      - name: Update PR Description
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const summary = fs.readFileSync('summary.md', 'utf8');
+            
+            // Get the current PR description
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            // Only append the summary if it's not already there
+            if (!pullRequest.body || !pullRequest.body.includes("## Automated PR Summary")) {
+              const newBody = (pullRequest.body || '') + '\n\n' + summary;
+              
+              await github.rest.pulls.update({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number,
+                body: newBody
+              });
+            }
