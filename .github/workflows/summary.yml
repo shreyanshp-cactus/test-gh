@@ -1,57 +1,37 @@
-name: PR Summary Generator
+name: Auto PR Description
 
 on:
   pull_request:
-    types: [opened, synchronize]
-
+    types: [opened]
+    
 jobs:
-  summarize:
+  generate-description:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
     steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          
-      - name: Generate PR Summary
-        id: summary
-        run: |
-          # Get the PR's diff and generate a summary
-          DIFF=$(git diff --name-status ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
-          
-          # Basic summary example (you can make this more sophisticated)
-          echo "## Automated PR Summary" > summary.md
-          echo "### Files Changed:" >> summary.md
-          echo '```' >> summary.md
-          echo "$DIFF" >> summary.md
-          echo '```' >> summary.md
-          
-          # For a more detailed summary, you could analyze the changes more deeply here
-          
-      - name: Update PR Description
-        uses: actions/github-script@v6
+      - name: Generate PR description
+        uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const summary = fs.readFileSync('summary.md', 'utf8');
-            
-            // Get the current PR description
             const { data: pullRequest } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
             });
             
-            // Only append the summary if it's not already there
-            if (!pullRequest.body || !pullRequest.body.includes("## Automated PR Summary")) {
-              const newBody = (pullRequest.body || '') + '\n\n' + summary;
-              
+            // Only update if description is empty
+            if (!pullRequest.body || pullRequest.body.trim() === '') {
+              // Generate PR description summary
               await github.rest.pulls.update({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
                 pull_number: context.issue.number,
-                body: newBody
+                body: ':robot: *This PR description was automatically generated*\n\n'
+                    + '## Summary\n\n'
+                    + '${{ github.event.pull_request.title }}\n\n'
+                    + '## Changes\n\n'
+                    + '<!-- PR-ROBOT:SUMMARY -->'  // GitHub will replace this marker with the summary
               });
             }
